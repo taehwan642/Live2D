@@ -5,8 +5,6 @@ using UnityEngine.UI;
 
 struct LiveVertex
 {
-    public int vertexIndex;
-
     public Vector3 position;
     public Vector2 uv;
 
@@ -28,7 +26,9 @@ public class Debugger : MonoBehaviour
     private GameObject quad;
 
     public Dropdown boneDropdown;
+    int previousBoneIndex = 0;
     public Dropdown vertexDropdown;
+    int currentVertexIndex = 0;
     public Slider weightSlider;
 
     List<LiveVertex> liveVertices;
@@ -43,6 +43,10 @@ public class Debugger : MonoBehaviour
             worldVertices[i] = live2DObject.transform.TransformPoint(vertices[i]);
             GameObject visualizer = Instantiate(vertexVisualizer, worldVertices[i], Quaternion.identity);
             visualizer.transform.SetParent(transform);
+            if (i == currentVertexIndex)
+                visualizer.GetComponent<SpriteRenderer>().color = Color.green;
+            else
+                visualizer.GetComponent<SpriteRenderer>().color = Color.red;
         }
 
         Mesh mesh = live2DObject.GetComponent<MeshFilter>().mesh;
@@ -89,6 +93,9 @@ public class Debugger : MonoBehaviour
         LiveBone bone = new LiveBone();
         GameObject boneGameObject = Instantiate(bonePrefab, Vector3.zero, Quaternion.identity);
         boneGameObject.transform.parent = boneParent.transform;
+
+        boneGameObject.GetComponent<SpriteRenderer>().color = Color.red;
+
         bone.bonePosition = boneGameObject.transform;
         // 업데이트 필요
         bone.bindPosition = Matrix4x4.identity;
@@ -160,6 +167,38 @@ public class Debugger : MonoBehaviour
         }
     }
 
+    public void ChangeVertexColor()
+    {
+        //LiveVertex previousVertex = liveVertices[previousVertexIndex];
+        //previousVertex.color = Color.red;
+        //liveVertices[previousVertexIndex] = previousVertex;
+
+        //transform.GetChild(currentVertexIndex).GetComponent<SpriteRenderer>().color = Color.red;
+
+        //LiveVertex firstVertex = liveVertices[vertexDropdown.value];
+        //firstVertex.color = Color.green;
+        //liveVertices[vertexDropdown.value] = firstVertex;
+
+        //transform.GetChild(vertexDropdown.value).GetComponent<SpriteRenderer>().color = Color.green;
+        currentVertexIndex = vertexDropdown.value;
+    }
+
+    public void ChangeBoneColor()
+    {
+        //LiveBone previousBone = liveBones[previousBoneIndex];
+        //previousBone.color = Color.red;
+        //liveBones[previousVertexIndex] = previousBone;
+       
+        boneParent.transform.GetChild(previousBoneIndex).GetComponent<SpriteRenderer>().color = Color.red;
+
+        //LiveBone firstBone = liveBones[boneDropdown.value];
+        //firstBone.color = Color.green;
+        //liveBones[boneDropdown.value] = firstBone;
+
+        boneParent.transform.GetChild(boneDropdown.value).GetComponent<SpriteRenderer>().color = Color.green;
+        previousBoneIndex = boneDropdown.value;
+    }
+
     // Start is called before the first frame update
     void Start()
     {
@@ -175,25 +214,21 @@ public class Debugger : MonoBehaviour
         Vector3[] vertices = mesh.vertices;
 
         LiveVertex v1 = new LiveVertex();
-        v1.vertexIndex = 0;
         v1.position = vertices[0];
         v1.uv = mesh.uv[0];
         liveVertices.Add(v1);
 
         LiveVertex v2 = new LiveVertex();
-        v2.vertexIndex = 1;
         v2.position = vertices[1];
         v2.uv = mesh.uv[1];
         liveVertices.Add(v2);
 
         LiveVertex v3 = new LiveVertex();
-        v3.vertexIndex = 2;
         v3.position = vertices[2];
         v3.uv = mesh.uv[2];
         liveVertices.Add(v3);
 
         LiveVertex v4 = new LiveVertex();
-        v4.vertexIndex = 3;
         v4.position = vertices[3];
         v4.uv = mesh.uv[3];
         liveVertices.Add(v4);
