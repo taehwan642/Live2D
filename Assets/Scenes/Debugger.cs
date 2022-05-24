@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 struct LiveVertex
 {
@@ -15,17 +16,23 @@ struct LiveVertex
 struct LiveBone
 {
     public Matrix4x4 bindPosition;
+    public Transform bonePosition;
 }
 
 public class Debugger : MonoBehaviour
 {
     public GameObject live2DObject;
     public GameObject vertexVisualizer;
-    public GameObject[] bones;
+    public GameObject bonePrefab;
+    public GameObject boneParent;
     private GameObject quad;
 
-    LiveVertex[] liveVertices;
-    LiveBone[] liveBones;
+    public Dropdown boneDropdown;
+    public Dropdown vertexDropdown;
+    public Slider weightSlider;
+
+    List<LiveVertex> liveVertices;
+    List<LiveBone> liveBones;
 
     void DrawVertexAndLine(Vector3[] vertices)
     {
@@ -63,14 +70,102 @@ public class Debugger : MonoBehaviour
             }
         }
     }
-    void SetWeightAndIndex(BoneWeight weight)
-    {
 
+    void InitLiveQuadVertex(ref LiveVertex vertex)
+    {
+        vertex.weight.boneIndex0 = -1;
+        vertex.weight.boneIndex1 = -1;
+        vertex.weight.boneIndex2 = -1;
+        vertex.weight.boneIndex3 = -1;
+
+        vertex.weight.weight0 = 0;
+        vertex.weight.weight1 = 0;
+        vertex.weight.weight2 = 0;
+        vertex.weight.weight3 = 0;
+    }
+
+    public void AddBone()
+    {
+        LiveBone bone = new LiveBone();
+        GameObject boneGameObject = Instantiate(bonePrefab, Vector3.zero, Quaternion.identity);
+        boneGameObject.transform.parent = boneParent.transform;
+        bone.bonePosition = boneGameObject.transform;
+        // 업데이트 필요
+        bone.bindPosition = Matrix4x4.identity;
+        liveBones.Add(bone);
+
+        UpdateDropdowns();
+    }
+
+    public void AttachVertexToBone()
+    {
+        int boneIndex = boneDropdown.value;
+        int vertexIndex = vertexDropdown.value;
+        float weight = weightSlider.value;
+
+        LiveVertex vertex = liveVertices[vertexIndex];
+
+        if (vertex.weight.boneIndex0 == -1)
+        {
+            vertex.weight.boneIndex0 = boneIndex;
+            vertex.weight.weight0 = weight;
+        }
+        else if (vertex.weight.boneIndex1 == -1)
+        {
+            vertex.weight.boneIndex1 = boneIndex;
+            vertex.weight.weight1 = weight;
+        }
+        else if (vertex.weight.boneIndex2 == -1)
+        {
+            vertex.weight.boneIndex2 = boneIndex;
+            vertex.weight.weight2 = weight;
+        }
+        else if (vertex.weight.boneIndex3 == -1)
+        {
+            vertex.weight.boneIndex3 = boneIndex;
+            vertex.weight.weight3 = weight;
+        }
+
+        liveVertices[vertexIndex] = vertex;
+    }
+
+    void UpdateDropdowns()
+    {
+        vertexDropdown.ClearOptions();
+        for (int i = 0; i < liveVertices.Count; ++i)
+        {
+            Dropdown.OptionData data = new Dropdown.OptionData(string.Format("Vertex {0}", i));
+            vertexDropdown.options.Add(data);
+        }
+        vertexDropdown.transform.GetChild(0).GetComponent<Text>().text = vertexDropdown.options[0].text;
+
+        boneDropdown.ClearOptions();
+        for (int i = 0; i < liveBones.Count; ++i)
+        {
+            Dropdown.OptionData data = new Dropdown.OptionData(string.Format("Bone {0}", i));
+            boneDropdown.options.Add(data);
+        }
+
+        if (boneDropdown.options.Count != 0)
+            boneDropdown.transform.GetChild(0).GetComponent<Text>().text = boneDropdown.options[0].text;
+    }
+
+    public void Play()
+    {
+        for (int i = 0; i < liveBones.Count; ++i)
+        {
+            LiveBone bone = liveBones[i];
+            bone.bindPosition = bone.bonePosition.localToWorldMatrix;
+            liveBones[i] = bone;
+        }
     }
 
     // Start is called before the first frame update
     void Start()
     {
+        liveVertices = new List<LiveVertex>();
+        liveBones = new List<LiveBone>();
+
         // 쿼드 세팅
         quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.SetActive(false);
@@ -79,46 +174,38 @@ public class Debugger : MonoBehaviour
         Mesh mesh = quad.GetComponent<MeshFilter>().mesh;
         Vector3[] vertices = mesh.vertices;
 
-        liveVertices = new LiveVertex[vertices.Length];
+        LiveVertex v1 = new LiveVertex();
+        v1.vertexIndex = 0;
+        v1.position = vertices[0];
+        v1.uv = mesh.uv[0];
+        liveVertices.Add(v1);
 
+        LiveVertex v2 = new LiveVertex();
+        v2.vertexIndex = 1;
+        v2.position = vertices[1];
+        v2.uv = mesh.uv[1];
+        liveVertices.Add(v2);
 
-        // 본
-        liveVertices[0].vertexIndex = 0;
-        liveVertices[0].position = vertices[0];
-        liveVertices[0].uv = mesh.uv[0];
-        liveVertices[0].weight.boneIndex0 = 0;
-        liveVertices[0].weight.boneIndex1 = 1;
-        liveVertices[0].weight.weight0 = 1;
-        liveVertices[0].weight.weight1 = 0;
-        // 본
-        liveVertices[1].vertexIndex = 1;
-        liveVertices[1].position = vertices[1];
-        liveVertices[1].uv = mesh.uv[1];
-        liveVertices[1].weight.boneIndex0 = 0;
-        liveVertices[1].weight.boneIndex1 = 1;
-        liveVertices[1].weight.weight0 = 0.5f;
-        liveVertices[1].weight.weight1 = 0.5f;
-        // 본
-        liveVertices[2].vertexIndex = 2;
-        liveVertices[2].position = vertices[2];
-        liveVertices[2].uv = mesh.uv[2];
-        liveVertices[2].weight.boneIndex0 = 0;
-        liveVertices[2].weight.boneIndex1 = 1;
-        liveVertices[2].weight.weight0 = 0.5f;
-        liveVertices[2].weight.weight1 = 0.5f;
-        // 본
-        liveVertices[3].vertexIndex = 3;
-        liveVertices[3].position = vertices[3];
-        liveVertices[3].uv = mesh.uv[3];
-        liveVertices[3].weight.boneIndex0 = 0;
-        liveVertices[3].weight.boneIndex1 = 1;
-        liveVertices[3].weight.weight0 = 0;
-        liveVertices[3].weight.weight1 = 1;
+        LiveVertex v3 = new LiveVertex();
+        v3.vertexIndex = 2;
+        v3.position = vertices[2];
+        v3.uv = mesh.uv[2];
+        liveVertices.Add(v3);
 
-        liveBones = new LiveBone[bones.Length];
-        for (int i = 0; i < bones.Length; ++i)
-            liveBones[i].bindPosition = bones[i].transform.localToWorldMatrix;
+        LiveVertex v4 = new LiveVertex();
+        v4.vertexIndex = 3;
+        v4.position = vertices[3];
+        v4.uv = mesh.uv[3];
+        liveVertices.Add(v4);
 
+        for (int i = 0; i < 4; ++i)
+        {
+            LiveVertex vtx = liveVertices[i];
+            InitLiveQuadVertex(ref vtx);
+            liveVertices[i] = vtx;
+        }
+
+        UpdateDropdowns();
     }
 
     // Update is called once per frame
@@ -142,28 +229,40 @@ public class Debugger : MonoBehaviour
             {
                 int boneIndex = 0;
                 float boneWeight = 0;
+                
                 if (j == 0)
                 {
+                    if (w.boneIndex0 == -1)
+                        break; 
                     boneIndex = w.boneIndex0;
                     boneWeight = w.weight0;
                 }
                 else if (j == 1)
                 {
+                    if (w.boneIndex1 == -1)
+                        break;
                     boneIndex = w.boneIndex1;
                     boneWeight = w.weight1;
                 }
                 else if (j == 2)
                 {
+                    if (w.boneIndex2 == -1)
+                        break;
                     boneIndex = w.boneIndex2;
                     boneWeight = w.weight2;
                 }
                 else if (j == 3)
                 {
+                    if (w.boneIndex3 == -1)
+                        break;
                     boneIndex = w.boneIndex3;
                     boneWeight = w.weight3;
                 }
 
-                Matrix4x4 boneMatrix = bones[boneIndex].transform.localToWorldMatrix; // 월드
+                if (boneIndex >= liveBones.Count)
+                    continue;
+
+                Matrix4x4 boneMatrix = liveBones[boneIndex].bonePosition.localToWorldMatrix; // 월드
                 Matrix4x4 boneBindMatrix = liveBones[boneIndex].bindPosition; // 월드
 
                 // 로컬
