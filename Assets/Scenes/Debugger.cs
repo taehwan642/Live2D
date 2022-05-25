@@ -30,6 +30,7 @@ public class Debugger : MonoBehaviour
     public Dropdown vertexDropdown;
     int currentVertexIndex = 0;
     public Slider weightSlider;
+    public InputField boneIndexInput;
 
     List<LiveVertex> liveVertices;
     List<LiveBone> liveBones;
@@ -77,22 +78,36 @@ public class Debugger : MonoBehaviour
 
     void InitLiveQuadVertex(ref LiveVertex vertex)
     {
-        vertex.weight.boneIndex0 = -1;
+        vertex.weight.boneIndex0 = 0;
         vertex.weight.boneIndex1 = -1;
         vertex.weight.boneIndex2 = -1;
         vertex.weight.boneIndex3 = -1;
 
-        vertex.weight.weight0 = 0;
+        vertex.weight.weight0 = 1;
         vertex.weight.weight1 = 0;
         vertex.weight.weight2 = 0;
         vertex.weight.weight3 = 0;
+    }
+
+    void SetWeightAccumulateIn1(ref LiveVertex vertex)
+    {
+        float weightAcc = vertex.weight.weight0 + vertex.weight.weight1 + vertex.weight.weight2 + vertex.weight.weight3;
+        if (weightAcc > 1.0f)
+        {
+            BoneWeight w = vertex.weight;
+            float length = Mathf.Sqrt((w.weight0 * w.weight0) + (w.weight1 * w.weight1) + (w.weight2 * w.weight2) + (w.weight3 * w.weight3));
+            vertex.weight.weight0 = w.weight0 / length;
+            vertex.weight.weight1 = w.weight1 / length;
+            vertex.weight.weight2 = w.weight2 / length;
+            vertex.weight.weight3 = w.weight3 / length;
+        }
     }
 
     public void AddBone()
     {
         LiveBone bone = new LiveBone();
         GameObject boneGameObject = Instantiate(bonePrefab, Vector3.zero, Quaternion.identity);
-        boneGameObject.transform.parent = boneParent.transform;
+        boneGameObject.transform.parent = boneParent.transform.GetChild(0).transform;
 
         boneGameObject.GetComponent<SpriteRenderer>().color = Color.red;
 
@@ -109,30 +124,31 @@ public class Debugger : MonoBehaviour
         int boneIndex = boneDropdown.value;
         int vertexIndex = vertexDropdown.value;
         float weight = weightSlider.value;
+        int input = int.Parse(boneIndexInput.transform.GetChild(2).GetComponent<Text>().text);
 
         LiveVertex vertex = liveVertices[vertexIndex];
 
-        if (vertex.weight.boneIndex0 == -1)
+        if (input == 0)
         {
             vertex.weight.boneIndex0 = boneIndex;
             vertex.weight.weight0 = weight;
         }
-        else if (vertex.weight.boneIndex1 == -1)
+        else if (input == 1)
         {
             vertex.weight.boneIndex1 = boneIndex;
             vertex.weight.weight1 = weight;
         }
-        else if (vertex.weight.boneIndex2 == -1)
+        else if (input == 2)
         {
             vertex.weight.boneIndex2 = boneIndex;
             vertex.weight.weight2 = weight;
         }
-        else if (vertex.weight.boneIndex3 == -1)
+        else if (input == 3)
         {
             vertex.weight.boneIndex3 = boneIndex;
             vertex.weight.weight3 = weight;
         }
-
+        SetWeightAccumulateIn1(ref vertex);
         liveVertices[vertexIndex] = vertex;
     }
 
@@ -169,34 +185,67 @@ public class Debugger : MonoBehaviour
 
     public void ChangeVertexColor()
     {
-        //LiveVertex previousVertex = liveVertices[previousVertexIndex];
-        //previousVertex.color = Color.red;
-        //liveVertices[previousVertexIndex] = previousVertex;
-
-        //transform.GetChild(currentVertexIndex).GetComponent<SpriteRenderer>().color = Color.red;
-
-        //LiveVertex firstVertex = liveVertices[vertexDropdown.value];
-        //firstVertex.color = Color.green;
-        //liveVertices[vertexDropdown.value] = firstVertex;
-
-        //transform.GetChild(vertexDropdown.value).GetComponent<SpriteRenderer>().color = Color.green;
         currentVertexIndex = vertexDropdown.value;
     }
 
     public void ChangeBoneColor()
     {
-        //LiveBone previousBone = liveBones[previousBoneIndex];
-        //previousBone.color = Color.red;
-        //liveBones[previousVertexIndex] = previousBone;
-       
-        boneParent.transform.GetChild(previousBoneIndex).GetComponent<SpriteRenderer>().color = Color.red;
+        liveBones[previousBoneIndex].bonePosition.gameObject.GetComponent<SpriteRenderer>().color = Color.red;
 
-        //LiveBone firstBone = liveBones[boneDropdown.value];
-        //firstBone.color = Color.green;
-        //liveBones[boneDropdown.value] = firstBone;
-
-        boneParent.transform.GetChild(boneDropdown.value).GetComponent<SpriteRenderer>().color = Color.green;
+        liveBones[boneDropdown.value].bonePosition.gameObject.GetComponent<SpriteRenderer>().color = Color.green;
         previousBoneIndex = boneDropdown.value;
+    }
+
+    public void AddVertex(Vector3 worldPosition)
+    {
+        // 월드에서 로컬로 변환한 뒤, live2DObject mesh에 추가
+        if (IsPointLiesInMesh(worldPosition))
+        {
+            Debug.Log("INSIDE!!!");
+        }
+        else
+            Debug.Log("NOTINSIDE");
+    }
+
+    bool IsPointLiesInMesh(Vector3 worldPosition)
+    {
+        // live2DObject의 Triangle을 다 돌면서 검사
+        Mesh mesh = live2DObject.GetComponent<MeshFilter>().mesh;
+        int[] triangles = mesh.triangles;
+
+        Vector4 worldPos;
+        worldPos.x = worldPosition.x;
+        worldPos.y = worldPosition.y;
+        worldPos.z = 0;
+        worldPos.w = 1;
+        Vector3 P = live2DObject.transform.worldToLocalMatrix * worldPos;
+
+        for (int i = 0; i < triangles.Length / 3; ++i)
+        {
+            Vector3 A = mesh.vertices[triangles[(i * 3)]];
+            Vector3 B = mesh.vertices[triangles[(i * 3) + 1]];
+            Vector3 C = mesh.vertices[triangles[(i * 3) + 2]];
+
+            // 삼각형의 넓이 ABC == PAB + PBC + PAC라면 P는 ABC 안에 있다.
+            Vector3 AB = B - A;
+            Vector3 AC = C - A;
+            float ABCarea = 0.5f * (Vector3.Cross(AB,AC)).magnitude;
+
+            Vector3 PA = A - P;
+            Vector3 PB = B - P;
+            Vector3 PC = C - P;
+            float PABarea = 0.5f * (Vector3.Cross(PA, PB)).magnitude;
+            float PBCarea = 0.5f * (Vector3.Cross(PB, PC)).magnitude;
+            float PACarea = 0.5f * (Vector3.Cross(PA, PC)).magnitude;
+            
+            // 오차 범위가 존재하기 때문에, 반올림
+            float result = Mathf.Round((PABarea + PBCarea + PACarea) * 10.0f) * 0.1f;
+            if (ABCarea >= result)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Start is called before the first frame update
@@ -240,6 +289,11 @@ public class Debugger : MonoBehaviour
             liveVertices[i] = vtx;
         }
 
+        LiveBone bone = new LiveBone();
+        bone.bonePosition = boneParent.transform.GetChild(0).transform;
+        bone.bindPosition = bone.bonePosition.localToWorldMatrix;
+        liveBones.Add(bone);
+
         UpdateDropdowns();
     }
 
@@ -264,11 +318,11 @@ public class Debugger : MonoBehaviour
             {
                 int boneIndex = 0;
                 float boneWeight = 0;
-                
+
                 if (j == 0)
                 {
                     if (w.boneIndex0 == -1)
-                        break; 
+                        break;
                     boneIndex = w.boneIndex0;
                     boneWeight = w.weight0;
                 }
