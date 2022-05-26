@@ -76,7 +76,7 @@ public class Debugger : MonoBehaviour
         }
     }
 
-    void InitLiveQuadVertex(ref LiveVertex vertex)
+    void InitVertexWeight(ref LiveVertex vertex)
     {
         vertex.weight.boneIndex0 = 0;
         vertex.weight.boneIndex1 = -1;
@@ -202,9 +202,49 @@ public class Debugger : MonoBehaviour
         if (IsPointLiesInMesh(worldPosition))
         {
             Debug.Log("INSIDE!!!");
+
+            Mesh mesh = live2DObject.GetComponent<MeshFilter>().mesh;
+            int verticesLength = mesh.vertexCount + 1;
+
+            int[] triangles = new int[verticesLength * 3];
+            mesh.triangles.CopyTo(triangles, 0);
+            triangles[mesh.triangles.Length + 0] = 0;
+            triangles[mesh.triangles.Length + 1] = 2;
+            triangles[mesh.triangles.Length + 2] = 4;
+
+            Vector3[] vertices = new Vector3[verticesLength];
+            mesh.vertices.CopyTo(vertices, 0);
+
+            Vector4 worldPos;
+            worldPos.x = worldPosition.x;
+            worldPos.y = worldPosition.y;
+            worldPos.z = 0;
+            worldPos.w = 1;
+            Vector3 P = live2DObject.transform.worldToLocalMatrix * worldPos;
+            vertices[mesh.vertices.Length] = P;
+
+            Vector2[] uv = new Vector2[verticesLength];
+            mesh.uv.CopyTo(uv, 0);
+            uv[mesh.uv.Length] = new Vector2(0.5f, 0.5f);
+
+            mesh.vertices = vertices;
+            mesh.uv = uv;
+            mesh.triangles = triangles;
+
+            live2DObject.GetComponent<MeshFilter>().mesh = mesh;
+
+            LiveVertex vtx = new LiveVertex();
+            vtx.position = P;
+            vtx.uv = new Vector2(0.5f, 0.5f);
+            InitVertexWeight(ref vtx);
+            liveVertices.Add(vtx);
+
+            UpdateDropdowns();
         }
         else
+        {
             Debug.Log("NOTINSIDE");
+        }
     }
 
     bool IsPointLiesInMesh(Vector3 worldPosition)
@@ -241,9 +281,7 @@ public class Debugger : MonoBehaviour
             // 오차 범위가 존재하기 때문에, 반올림
             float result = Mathf.Round((PABarea + PBCarea + PACarea) * 10.0f) * 0.1f;
             if (ABCarea >= result)
-            {
                 return true;
-            }
         }
         return false;
     }
@@ -258,8 +296,10 @@ public class Debugger : MonoBehaviour
         quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.SetActive(false);
 
+        Mesh mesh = Instantiate<Mesh>(quad.GetComponent<MeshFilter>().mesh);
+        live2DObject.GetComponent<MeshFilter>().mesh = mesh;
+
         // Live 정보들 세팅
-        Mesh mesh = quad.GetComponent<MeshFilter>().mesh;
         Vector3[] vertices = mesh.vertices;
 
         LiveVertex v1 = new LiveVertex();
@@ -285,7 +325,7 @@ public class Debugger : MonoBehaviour
         for (int i = 0; i < 4; ++i)
         {
             LiveVertex vtx = liveVertices[i];
-            InitLiveQuadVertex(ref vtx);
+            InitVertexWeight(ref vtx);
             liveVertices[i] = vtx;
         }
 
@@ -305,7 +345,7 @@ public class Debugger : MonoBehaviour
             Destroy(transform.GetChild(i).gameObject);
         }
 
-        Mesh mesh = Instantiate<Mesh>(quad.GetComponent<MeshFilter>().mesh);
+        Mesh mesh = Instantiate<Mesh>(live2DObject.GetComponent<MeshFilter>().mesh);
         Vector3[] vertices = mesh.vertices;
 
         // 본을 통한 움직임
