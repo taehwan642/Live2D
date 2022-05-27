@@ -199,7 +199,9 @@ public class Debugger : MonoBehaviour
     public void AddVertex(Vector3 worldPosition)
     {
         // 월드에서 로컬로 변환한 뒤, live2DObject mesh에 추가
-        if (IsPointLiesInMesh(worldPosition))
+        List<Vector3> triVtxPos;
+        List<Vector2> triUV;
+        if (IsPointLiesInMesh(worldPosition, out triVtxPos, out triUV))
         {
             Debug.Log("INSIDE!!!");
 
@@ -225,7 +227,16 @@ public class Debugger : MonoBehaviour
 
             Vector2[] uv = new Vector2[verticesLength];
             mesh.uv.CopyTo(uv, 0);
-            uv[mesh.uv.Length] = new Vector2(0.5f, 0.5f);
+
+            // Cramer's Rule
+            Vector3 v0 = triVtxPos[0] - triVtxPos[2];
+            Vector3 v1 = triVtxPos[1] - triVtxPos[2];
+            Vector3 v2 = P - triVtxPos[2];
+            float denominator = (Vector3.Dot(v0, v0) * Vector3.Dot(v1, v1)) - (Vector3.Dot(v1, v0) * Vector3.Dot(v0, v1));
+            float s = (Vector3.Dot(v2, v0) * Vector3.Dot(v1, v1)) - (Vector3.Dot(v1, v0) * Vector3.Dot(v2, v1)) / denominator;
+            float t = (Vector3.Dot(v0, v0) * Vector3.Dot(v2, v1)) - (Vector3.Dot(v2, v0) * Vector3.Dot(v0, v1)) / denominator;
+
+            uv[mesh.uv.Length] = s * triUV[0] + t * triUV[1] + (1 - s - t) * triUV[2];
 
             mesh.vertices = vertices;
             mesh.uv = uv;
@@ -247,8 +258,11 @@ public class Debugger : MonoBehaviour
         }
     }
 
-    bool IsPointLiesInMesh(Vector3 worldPosition)
+    bool IsPointLiesInMesh(Vector3 worldPosition, out List<Vector3> triVtxPos, out List<Vector2> triUV)
     {
+        triVtxPos = new List<Vector3>();
+        triUV = new List<Vector2>();
+
         // live2DObject의 Triangle을 다 돌면서 검사
         Mesh mesh = live2DObject.GetComponent<MeshFilter>().mesh;
         int[] triangles = mesh.triangles;
@@ -281,7 +295,16 @@ public class Debugger : MonoBehaviour
             // 오차 범위가 존재하기 때문에, 반올림
             float result = Mathf.Round((PABarea + PBCarea + PACarea) * 10.0f) * 0.1f;
             if (ABCarea >= result)
+            {
+                triVtxPos.Add(A);
+                triVtxPos.Add(B);
+                triVtxPos.Add(C);
+
+                triUV.Add(mesh.uv[triangles[(i * 3)]]);
+                triUV.Add(mesh.uv[triangles[(i * 3) + 1]]);
+                triUV.Add(mesh.uv[triangles[(i * 3) + 2]]);
                 return true;
+            }
         }
         return false;
     }
