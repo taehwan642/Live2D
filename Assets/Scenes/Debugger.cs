@@ -24,6 +24,10 @@ public class Debugger : MonoBehaviour
     List<LiveBone> liveBones;
 
     public GameObject[] obj;
+    bool drawVertexAndLine = true;
+
+    public Dropdown selectBoneForParentDropdown1;
+    public Dropdown selectBoneForParentDropdown2;
 
     void DrawVertexAndLine(Vector3[] vertices)
     {
@@ -51,8 +55,9 @@ public class Debugger : MonoBehaviour
             LineRenderer renderer = lineRendererObject.AddComponent<LineRenderer>();
             renderer.startColor = Color.black;
             renderer.endColor = Color.black;
-            renderer.startWidth = 0.05f;
-            renderer.endWidth = 0.05f;
+            renderer.startWidth = 0.005f;
+            renderer.endWidth = 0.005f;
+            renderer.gameObject.layer = 5;
             renderer.material = new Material(Shader.Find("Diffuse"));
             renderer.positionCount = 4;
 
@@ -99,7 +104,9 @@ public class Debugger : MonoBehaviour
         GameObject boneGameObject = Instantiate(bonePrefab, Vector3.zero, Quaternion.identity);
         boneGameObject.transform.parent = boneParent.transform.GetChild(0).transform;
 
-        boneGameObject.GetComponent<SpriteRenderer>().color = Color.red;
+        Color color = Color.red;
+        color.a = 76;
+        boneGameObject.GetComponent<SpriteRenderer>().color = color;
 
         bone.bonePosition = boneGameObject.transform;
         // 업데이트 필요
@@ -153,14 +160,22 @@ public class Debugger : MonoBehaviour
         vertexDropdown.transform.GetChild(0).GetComponent<Text>().text = vertexDropdown.options[0].text;
 
         boneDropdown.ClearOptions();
+        selectBoneForParentDropdown1.ClearOptions();
+        selectBoneForParentDropdown2.ClearOptions();
         for (int i = 0; i < liveBones.Count; ++i)
         {
             Dropdown.OptionData data = new Dropdown.OptionData(string.Format("Bone {0}", i));
             boneDropdown.options.Add(data);
+            selectBoneForParentDropdown1.options.Add(data);
+            selectBoneForParentDropdown2.options.Add(data);
         }
 
         if (boneDropdown.options.Count != 0)
+        {
             boneDropdown.transform.GetChild(0).GetComponent<Text>().text = boneDropdown.options[0].text;
+            selectBoneForParentDropdown1.transform.GetChild(0).GetComponent<Text>().text = boneDropdown.options[0].text;
+            selectBoneForParentDropdown2.transform.GetChild(0).GetComponent<Text>().text = boneDropdown.options[0].text;
+        }
     }
 
     public void Play()
@@ -319,6 +334,11 @@ public class Debugger : MonoBehaviour
         return false;
     }
 
+    public void SetBoneParent()
+    {
+        liveBones[selectBoneForParentDropdown2.value].bonePosition.parent = liveBones[selectBoneForParentDropdown1.value].bonePosition;
+    }
+
     // Start is called before the first frame update
     void Start()
     {
@@ -428,17 +448,12 @@ public class Debugger : MonoBehaviour
                 Matrix4x4 boneMatrix = liveBones[boneIndex].bonePosition.localToWorldMatrix; // 월드
                 Matrix4x4 boneBindMatrix = liveBones[boneIndex].bindPosition; // 월드
 
-                // 로컬
-                Matrix4x4 boneLocal = boneBindMatrix.inverse * boneMatrix;
-
                 Vector4 currentVertex = vertices[i];
                 currentVertex.w = 1;
                 // 로컬 정점 위치
                 Vector4 localPosition = boneBindMatrix.inverse * currentVertex;
 
-                Vector4 skinnedLocalPosition = boneLocal * localPosition;
-
-                Vector3 skinnedWorldPosition = boneBindMatrix * skinnedLocalPosition;
+                Vector3 skinnedWorldPosition = boneMatrix * localPosition;
 
                 totalPosition += skinnedWorldPosition * boneWeight;
             }
@@ -448,6 +463,10 @@ public class Debugger : MonoBehaviour
         mesh.vertices = vertices;
         live2DObject.GetComponent<MeshFilter>().mesh = mesh;
 
-        DrawVertexAndLine(mesh.vertices);
+        if (drawVertexAndLine)
+            DrawVertexAndLine(mesh.vertices);
+
+        if (Input.GetKeyDown(KeyCode.Q))
+            drawVertexAndLine = !drawVertexAndLine;
     }
 }

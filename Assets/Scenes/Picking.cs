@@ -17,7 +17,7 @@ public class Picking : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetMouseButtonDown(0)) 
+        if (Input.GetKeyDown(KeyCode.A))
         {
             screenPosition = Input.mousePosition;
             screenPosition.z = 1;
