@@ -3,19 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-struct LiveVertex
-{
-    public Vector3 position;
-    public Vector2 uv;
-
-    public BoneWeight weight;
-}
-
-struct LiveBone
-{
-    public Matrix4x4 bindPosition;
-    public Transform bonePosition;
-}
 
 public class Debugger : MonoBehaviour
 {
@@ -31,9 +18,12 @@ public class Debugger : MonoBehaviour
     int currentVertexIndex = 0;
     public Slider weightSlider;
     public InputField boneIndexInput;
+    public Mesh staticMesh;
 
     List<LiveVertex> liveVertices;
     List<LiveBone> liveBones;
+
+    public GameObject[] obj;
 
     void DrawVertexAndLine(Vector3[] vertices)
     {
@@ -203,16 +193,14 @@ public class Debugger : MonoBehaviour
         List<Vector2> triUV;
         if (IsPointLiesInMesh(worldPosition, out triVtxPos, out triUV))
         {
+            obj[0].transform.position = triVtxPos[0];
+            obj[1].transform.position = triVtxPos[1];
+            obj[2].transform.position = triVtxPos[2];
+
             Debug.Log("INSIDE!!!");
 
             Mesh mesh = live2DObject.GetComponent<MeshFilter>().mesh;
             int verticesLength = mesh.vertexCount + 1;
-
-            int[] triangles = new int[verticesLength * 3];
-            mesh.triangles.CopyTo(triangles, 0);
-            triangles[mesh.triangles.Length + 0] = 0;
-            triangles[mesh.triangles.Length + 1] = 2;
-            triangles[mesh.triangles.Length + 2] = 4;
 
             Vector3[] vertices = new Vector3[verticesLength];
             mesh.vertices.CopyTo(vertices, 0);
@@ -233,16 +221,13 @@ public class Debugger : MonoBehaviour
             Vector3 v1 = triVtxPos[1] - triVtxPos[2];
             Vector3 v2 = P - triVtxPos[2];
             float denominator = (Vector3.Dot(v0, v0) * Vector3.Dot(v1, v1)) - (Vector3.Dot(v1, v0) * Vector3.Dot(v0, v1));
-            float s = (Vector3.Dot(v2, v0) * Vector3.Dot(v1, v1)) - (Vector3.Dot(v1, v0) * Vector3.Dot(v2, v1)) / denominator;
-            float t = (Vector3.Dot(v0, v0) * Vector3.Dot(v2, v1)) - (Vector3.Dot(v2, v0) * Vector3.Dot(v0, v1)) / denominator;
+            float s = ((Vector3.Dot(v2, v0) * Vector3.Dot(v1, v1)) - (Vector3.Dot(v1, v0) * Vector3.Dot(v2, v1))) / denominator;
+            float t = ((Vector3.Dot(v0, v0) * Vector3.Dot(v2, v1)) - (Vector3.Dot(v2, v0) * Vector3.Dot(v0, v1))) / denominator;
 
             uv[mesh.uv.Length] = s * triUV[0] + t * triUV[1] + (1 - s - t) * triUV[2];
 
             mesh.vertices = vertices;
             mesh.uv = uv;
-            mesh.triangles = triangles;
-
-            live2DObject.GetComponent<MeshFilter>().mesh = mesh;
 
             LiveVertex vtx = new LiveVertex();
             vtx.position = P;
@@ -251,6 +236,31 @@ public class Debugger : MonoBehaviour
             liveVertices.Add(vtx);
 
             UpdateDropdowns();
+
+            List<DelaunayTriangulation.Vertex> triangulationData = new List<DelaunayTriangulation.Vertex>();
+
+            List<int> indecies = new List<int>();
+
+            for (int i = 0; i < liveVertices.Count; ++i)
+            {
+                Vector3 position = liveVertices[i].position;
+                triangulationData.Add(new DelaunayTriangulation.Vertex(new Vector2(position.x, position.y), i));
+            }
+
+            DelaunayTriangulation.Triangulation triangulation = new DelaunayTriangulation.Triangulation(triangulationData);
+
+            foreach (DelaunayTriangulation.Triangle triangle in triangulation.triangles)
+            {
+                indecies.Add(triangle.vertex0.index);
+                indecies.Add(triangle.vertex1.index);
+                indecies.Add(triangle.vertex2.index);
+            }
+
+            mesh.SetIndices(indecies.ToArray(), MeshTopology.Triangles, 0);
+            mesh.RecalculateBounds();
+            mesh.RecalculateNormals();
+
+            staticMesh = mesh;
         }
         else
         {
@@ -284,7 +294,7 @@ public class Debugger : MonoBehaviour
             Vector3 AB = B - A;
             Vector3 AC = C - A;
             float ABCarea = 0.5f * (Vector3.Cross(AB,AC)).magnitude;
-
+            float roundABCarea = Mathf.Round(ABCarea * 10.0f) * 0.1f;
             Vector3 PA = A - P;
             Vector3 PB = B - P;
             Vector3 PC = C - P;
@@ -294,7 +304,7 @@ public class Debugger : MonoBehaviour
             
             // 오차 범위가 존재하기 때문에, 반올림
             float result = Mathf.Round((PABarea + PBCarea + PACarea) * 10.0f) * 0.1f;
-            if (ABCarea >= result)
+            if (roundABCarea >= result)
             {
                 triVtxPos.Add(A);
                 triVtxPos.Add(B);
@@ -321,6 +331,7 @@ public class Debugger : MonoBehaviour
 
         Mesh mesh = Instantiate<Mesh>(quad.GetComponent<MeshFilter>().mesh);
         live2DObject.GetComponent<MeshFilter>().mesh = mesh;
+        staticMesh = mesh;
 
         // Live 정보들 세팅
         Vector3[] vertices = mesh.vertices;
@@ -368,7 +379,7 @@ public class Debugger : MonoBehaviour
             Destroy(transform.GetChild(i).gameObject);
         }
 
-        Mesh mesh = Instantiate<Mesh>(live2DObject.GetComponent<MeshFilter>().mesh);
+        Mesh mesh = Instantiate<Mesh>(staticMesh);
         Vector3[] vertices = mesh.vertices;
 
         // 본을 통한 움직임
